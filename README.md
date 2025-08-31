@@ -1,107 +1,134 @@
-# OpenWrt SDK & 交叉编译教程
+# microsocks OpenWrt Compilation & Usage Guide
 
-本教程涵盖 OpenWrt 各架构 SDK 下载、交叉编译程序、运行方法以及账号密码配置示例。
+## 项目简介
+microsocks 是一个轻量级的 SOCKS5 代理服务程序，支持用户名密码认证，可运行在各种路由器架构（MIPS/ARM/x86）。适合 OpenWrt 路由器或其他嵌入式设备。
 
 ---
 
-## 1️⃣ 常见架构及 SDK 下载
+## 支持架构
+- **MIPS (mipsel, 24kc)**
+- **ARM (armv7, armv5)**
+- **x86 / x86_64**
 
-| 架构 (Target) | CPU 类型 | SDK 下载链接 |
-|---------------|---------|-------------|
-| ramips/rt305x | MIPS 24Kc | [SDK 19.07.10](https://downloads.openwrt.org/releases/19.07.10/targets/ramips/rt305x/openwrt-sdk-19.07.10-ramips-rt305x_gcc-7.5.0_musl.Linux-x86_64.tar.xz) |
-| ar71xx        | MIPS 74K  | [SDK 19.07.10](https://downloads.openwrt.org/releases/19.07.10/targets/ar71xx/) |
-| bcm53xx       | MIPS 1004K | [SDK 19.07.10](https://downloads.openwrt.org/releases/19.07.10/targets/bcm53xx/) |
-| x86_64        | Intel/AMD 64-bit | [SDK 19.07.10](https://downloads.openwrt.org/releases/19.07.10/targets/x86/64/) |
-| aarch64       | ARM 64-bit | [SDK 19.07.10](https://downloads.openwrt.org/releases/19.07.10/targets/armvirt/64/) |
-| armvirt/32    | ARM 32-bit | [SDK 19.07.10](https://downloads.openwrt.org/releases/19.07.10/targets/armvirt/32/) |
-
-> 查询设备架构：
+### 查询架构信息
 ```bash
-uname -m
-cat /proc/cpuinfo
-file <binary_file>
-2️⃣ SDK 准备与环境
-下载并解压 SDK：
-
-bash
-复制代码
-wget <SDK下载链接>
-tar -xf openwrt-sdk-<version>-<arch>.tar.xz
-cd openwrt-sdk-<version>-<arch>
-检查交叉编译器：
-
-bash
-复制代码
-ls staging_dir/toolchain-*/bin/
-# 例如 mipsel-openwrt-linux-gcc、arm-openwrt-linux-gcc 等
-设置 Python（若 SDK 需要 Python 2）：
-
-bash
-复制代码
-sudo ln -sf /usr/bin/python2.7 /usr/bin/python
-python --version
-3️⃣ 编译程序方法（以 microsocks 为例）
-bash
-复制代码
-cd microsocks
-../staging_dir/toolchain-<arch>/bin/<target-gcc> \
-    -Wall -std=c99 \
-    -o sockssrv \
-    sockssrv.c server.c sblist.c sblist_delete.c
-输出文件：sockssrv
-
-检查架构：
-
-bash
-复制代码
 file sockssrv
-4️⃣ 支持协议
-SOCKS5（带账号密码认证）
+# 输出示例：ELF 32-bit LSB executable, MIPS, MIPS32 rel2 version 1 (SYSV)
+```
 
-TCP/UDP 代理
+---
 
-可配置端口和访问控制（通过 -u 用户名和 -P 密码参数）
+## SDK 下载与选择
+### 常用 SDK 下载链接（OpenWrt 19.07）
+- MIPS: [openwrt-sdk-19.07.10-ramips-rt305x](https://downloads.openwrt.org/releases/19.07.10/targets/ramips/rt305x/openwrt-sdk-19.07.10-ramips-rt305x_gcc-7.5.0_musl.Linux-x86_64.tar.xz)
+- ARM: 根据目标板选择合适的 SDK
+- x86/x86_64: 根据目标选择 x86_64 SDK
 
-示例启动命令：
+### 解压命令
+```bash
+tar -xf openwrt-sdk-19.07.10-ramips-rt305x_gcc-7.5.0_musl.Linux-x86_64.tar.xz
+cd openwrt-sdk-19.07.10-ramips-rt305x_gcc-7.5.0_musl.Linux-x86_64
+```
 
-bash
-复制代码
-./sockssrv -u <username> -P <password> -p <port>
-# 例如
+---
+
+## 编译教程
+### 克隆源码
+```bash
+git clone https://github.com/gl-inet/openwrt.git
+cd openwrt
+```
+
+### 使用 SDK 编译 microsocks
+#### 设置交叉编译工具链路径
+```bash
+export TOOLCHAIN=../staging_dir/toolchain-mipsel_24kc_gcc-7.5.0_musl/bin/mipsel-openwrt-linux-gcc
+```
+
+#### 动态编译
+```bash
+$TOOLCHAIN -Wall -std=c99 -o sockssrv sockssrv.c server.c sblist.c sblist_delete.c
+```
+
+#### 静态编译（推荐）
+```bash
+$TOOLCHAIN -Wall -std=c99 -static -o sockssrv sockssrv.c server.c sblist.c sblist_delete.c
+```
+
+#### 注意事项
+- 需要 Python 2.x 编译 OpenWrt SDK，如果报错可使用 FORCE=1 跳过
+- 编译前确保交叉工具链路径正确
+
+---
+
+## 运行方法
+```bash
+# 上传到路由器
+scp sockssrv root@192.168.8.1:/usr/bin/
+
+# 运行 SOCKS5 服务
+./sockssrv -u 用户名 -P 密码 -p 1080
+
+# 示例
 ./sockssrv -u 123123123 -P 123123123. -p 1080
-5️⃣ 在设备上运行
-上传二进制：
+```
 
-bash
-复制代码
-scp sockssrv root@<device_ip>:/root/
-给权限并运行：
+### 测试是否可用
+```bash
+# 使用 curl 测试
+curl --socks5 127.0.0.1:1080 http://ipinfo.io
+```
 
-bash
-复制代码
-chmod +x sockssrv
-./sockssrv -u <username> -P <password> -p <port>
-测试代理是否可用：
+---
 
-bash
-复制代码
-curl --socks5 127.0.0.1:1080 http://example.com
-6️⃣ 编译其他软件
-步骤基本一致：
+## 添加账号密码
+- `-u` : 用户名
+- `-P` : 密码
+- SOCKS5 仅支持用户名密码认证
 
-找到源码
+---
 
-使用 SDK 交叉编译器编译
+## 支持协议
+- **SOCKS5**
+- 用户名密码认证
+- IPv4/IPv6
+- **不支持 HTTP/HTTPS 代理模式**
 
-上传到目标设备运行
+---
 
-注意：依赖库需在 SDK 中可用，否则需要额外编译或静态链接。
+## 常见问题
+### -ash: ./sockssrv: not found
+- 原因：交叉编译架构与设备不匹配
+- 解决：确认工具链和目标架构一致
 
-7️⃣ 常见问题
--bash: ./sockssrv: not found → 二进制架构与设备不匹配
+### 编译报错 Python 2.x
+- 安装 Python 2 或使用 FORCE=1
 
-undefined reference → 编译命令没有包含所有源文件
+### RPC/EOF 克隆错误
+- 可尝试 `--depth=1` 或换 GitHub 镜像
 
-Python2 问题 → 对应版本 SDK 需要 Python2 支持
+---
 
-SDK 下载 404 → 需检查 OpenWrt 官网 releases 版本
+## xBoard 添加示例
+1. 将 `sockssrv` 上传至路由器
+2. 设置启动命令 `/usr/bin/sockssrv -u 用户名 -P 密码 -p 1080`
+3. 配置端口与防火墙允许访问
+
+---
+
+## 开机自启脚本示例
+```bash
+#!/bin/sh /etc/rc.common
+START=99
+start() {
+    /usr/bin/sockssrv -u 123123123 -P 123123123. -p 1080 &
+}
+```
+
+---
+
+## 参考链接
+- [microsocks GitHub](https://github.com/rofl0r/microsocks)
+- [OpenWrt SDK](https://downloads.openwrt.org/releases/19.07.10/targets/ramips/rt305x/)
+- [OpenWrt Docs](https://openwrt.org/docs/guide-developer/toolchain/use-buildsystem)
+

@@ -70,7 +70,7 @@ scp sockssrv root@192.168.8.1:/usr/bin/
 ./sockssrv -u 用户名 -P 密码 -p 1080
 
 # 示例
-./sockssrv -u 123123123 -P 123123123. -p 1080
+./sockssrv -u 123123123 -P 123123123 -p 1080
 ```
 
 ### 测试是否可用
